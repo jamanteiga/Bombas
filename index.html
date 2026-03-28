@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f2f2f7">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Bombas">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Bombas & NPSH</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-logo">💧 <span>Bombas & NPSH</span></div>
+  <div class="hdr-sub">Curvas y cavitación</div>
+  <div class="hdr-pill def" id="statusPill">—</div>
+</header>
+
+<!-- PAGE: CURVAS -->
+<div class="page active" data-page="curvas">
+  <div class="card" style="margin-bottom:12px">
+    <canvas id="pumpCvs"></canvas>
+    <div style="padding:7px 14px;font-size:11px;color:var(--mu);text-align:center;background:var(--sf2);border-top:1px solid var(--bd2)">
+      ● Punto de operación (intersección bomba ∩ sistema)
+    </div>
+  </div>
+
+  <!-- Punto operación rápido -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="rg">
+      <div class="rc">
+        <div class="rl">Q operación</div>
+        <div class="rv" id="opQ" style="color:var(--yw)">—</div>
+        <div class="ru">m³/h</div>
+      </div>
+      <div class="rc">
+        <div class="rl">H operación</div>
+        <div class="rv" id="opH" style="color:var(--yw)">—</div>
+        <div class="ru">m</div>
+      </div>
+      <div class="rc" style="border-top:1px solid var(--bd2)">
+        <div class="rl">Eficiencia η</div>
+        <div class="rv" id="opEta" style="color:var(--gn)">—</div>
+        <div class="ru">%</div>
+      </div>
+      <div class="rc" style="border-top:1px solid var(--bd2)">
+        <div class="rl">Potencia eje</div>
+        <div class="rv" id="opP" style="color:var(--pu)">—</div>
+        <div class="ru">kW</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: NPSH -->
+<div class="page" data-page="npsh">
+  <div id="cavitWarn" class="cavit-warn">
+    ⚠️ RIESGO DE CAVITACIÓN — NPSHd &lt; NPSHr en el punto de operación
+  </div>
+  <div id="cavitOk" class="cavit-ok" style="display:none">
+    ✓ Sin riesgo de cavitación — Margen NPSH adecuado
+  </div>
+
+  <div class="card" style="margin-bottom:12px">
+    <canvas id="npshCvs"></canvas>
+    <div style="padding:7px 14px;font-size:11px;color:var(--mu);text-align:center;background:var(--sf2);border-top:1px solid var(--bd2)">
+      Zona verde = operación segura · Zona roja = cavitación
+    </div>
+  </div>
+
+  <!-- Resultados NPSH -->
+  <div class="sec">NPSH en el punto de operación</div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="rg">
+      <div class="rc">
+        <div class="rl">NPSHd disponible</div>
+        <div class="rv" id="npshD" style="color:var(--ac)">—</div>
+        <div class="ru">m</div>
+      </div>
+      <div class="rc">
+        <div class="rl">NPSHr requerido</div>
+        <div class="rv" id="npshR" style="color:var(--rd)">—</div>
+        <div class="ru">m</div>
+      </div>
+      <div class="rc" style="border-top:1px solid var(--bd2)">
+        <div class="rl">Margen NPSH</div>
+        <div class="rv" id="npshM">—</div>
+        <div class="ru">m (mín. 0.5 m)</div>
+      </div>
+      <div class="rc" style="border-top:1px solid var(--bd2)">
+        <div class="rl">Z_s máx. segura</div>
+        <div class="rv" id="zsMax">—</div>
+        <div class="ru">m sobre depósito</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Datos de succión</div>
+  <div class="card" style="margin-bottom:14px;padding:14px 16px">
+    <div class="form-2" style="margin-bottom:10px">
+      <div>
+        <div class="fl">Altura geométrica Zs [m]</div>
+        <input class="ios-inp" id="zsInp" type="number" step="0.5" value="3" oninput="update()">
+      </div>
+      <div>
+        <div class="fl">Long. tubería succ. [m]</div>
+        <input class="ios-inp" id="lsInp" type="number" step="1" value="5" oninput="update()">
+      </div>
+    </div>
+    <div class="form-2" style="margin-bottom:10px">
+      <div>
+        <div class="fl">Diámetro succ. [mm]</div>
+        <input class="ios-inp" id="dsInp" type="number" step="5" value="65" oninput="update()">
+      </div>
+      <div>
+        <div class="fl">Σζ accesorios succ.</div>
+        <input class="ios-inp" id="zetaInp" type="number" step="0.5" value="3" oninput="update()">
+      </div>
+    </div>
+    <div class="form-2">
+      <div>
+        <div class="fl">P atmosférica [Pa]</div>
+        <input class="ios-inp" id="patmInp" type="number" step="100" value="101325" oninput="update()">
+      </div>
+      <div>
+        <div class="fl">Presión vapor pv [Pa]</div>
+        <input class="ios-inp" id="pvInp" type="number" step="100" value="2338" oninput="update()">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: BOMBA -->
+<div class="page" data-page="bomba">
+  <div class="sec">Parámetros de la bomba</div>
+  <div class="card" style="margin-bottom:14px;padding:14px 16px">
+    <div class="form-2" style="margin-bottom:10px">
+      <div><div class="fl">H₀ cierre [m]</div>
+        <input class="ios-inp" id="h0Inp" type="number" step="1" value="28" oninput="update()"></div>
+      <div><div class="fl">Hn nominal [m]</div>
+        <input class="ios-inp" id="hnInp" type="number" step="1" value="20" oninput="update()"></div>
+    </div>
+    <div class="form-2" style="margin-bottom:10px">
+      <div><div class="fl">Qn nominal [m³/h]</div>
+        <input class="ios-inp" id="qnInp" type="number" step="1" value="6" oninput="update()"></div>
+      <div><div class="fl">Qmax [m³/h]</div>
+        <input class="ios-inp" id="qmaxInp" type="number" step="1" value="10" oninput="update()"></div>
+    </div>
+    <div class="form-2" style="margin-bottom:10px">
+      <div><div class="fl">η_max eficiencia</div>
+        <input class="ios-inp" id="etaInp" type="number" step="0.01" value="0.55" oninput="update()"></div>
+      <div><div class="fl">NPSHr en Qn [m]</div>
+        <input class="ios-inp" id="npshRnInp" type="number" step="0.1" value="1.5" oninput="update()"></div>
+    </div>
+    <div class="form-2">
+      <div><div class="fl">Velocidad n [rpm]</div>
+        <input class="ios-inp" id="rpmInp" type="number" step="50" value="2900" oninput="update()"></div>
+      <div><div class="fl">H_estática [m]</div>
+        <input class="ios-inp" id="hstInp" type="number" step="1" value="15" oninput="update()"></div>
+    </div>
+  </div>
+
+  <div class="sec">Tubería de impulsión</div>
+  <div class="card" style="margin-bottom:14px;padding:14px 16px">
+    <div class="form-2" style="margin-bottom:10px">
+      <div><div class="fl">Longitud L [m]</div>
+        <input class="ios-inp" id="ltInp" type="number" step="5" value="30" oninput="update()"></div>
+      <div><div class="fl">Diámetro D [mm]</div>
+        <input class="ios-inp" id="dtInp" type="number" step="5" value="40" oninput="update()"></div>
+    </div>
+    <div class="form-2">
+      <div><div class="fl">Rugosidad ε [mm]</div>
+        <input class="ios-inp" id="epsInp" type="number" step="0.01" value="0.15" oninput="update()"></div>
+      <div><div class="fl">Σζ accesorios</div>
+        <input class="ios-inp" id="zetaTInp" type="number" step="1" value="5" oninput="update()"></div>
+    </div>
+  </div>
+
+  <!-- Tipo bomba y nq -->
+  <div class="sec">Clasificación</div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="rg">
+      <div class="rc">
+        <div class="rl">Velocidad específica nq</div>
+        <div class="rv" id="nqVal" style="font-size:15px">—</div>
+        <div class="ru">adim.</div>
+      </div>
+      <div class="rc">
+        <div class="rl">Tipo de bomba</div>
+        <div class="rv" id="pumpType" style="font-size:13px">—</div>
+        <div class="ru">&nbsp;</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leyes de semejanza -->
+  <div class="sec">Leyes de semejanza (variación de velocidad)</div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="padding:10px 14px 4px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:13px;color:var(--mu);font-weight:600">Nueva velocidad n₂</span>
+      <input class="ios-inp" id="n2Inp" type="number" step="50" value="2900"
+             oninput="updateAffinity()" style="max-width:120px;padding:6px 10px">
+      <span style="font-size:13px;color:var(--mu)">rpm</span>
+    </div>
+    <div id="affinityBody">
+      <div class="aff-row"><span class="aff-k">n₁ original</span><span class="aff-v" id="affN1">—</span><span style="font-size:11px;color:var(--mu)">rpm</span></div>
+      <div class="aff-row"><span class="aff-k">Q₂ = Q₁·(n₂/n₁)</span><span class="aff-v2" id="affQ2">—</span><span style="font-size:11px;color:var(--mu)">m³/h</span></div>
+      <div class="aff-row"><span class="aff-k">H₂ = H₁·(n₂/n₁)²</span><span class="aff-v2" id="affH2">—</span><span style="font-size:11px;color:var(--mu)">m</span></div>
+      <div class="aff-row"><span class="aff-k">P₂ = P₁·(n₂/n₁)³</span><span class="aff-v2" id="affP2">—</span><span style="font-size:11px;color:var(--mu)">kW</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: PRESETS -->
+<div class="page" data-page="presets">
+  <div class="sec">Ejemplos precargados</div>
+  <div id="presetList"></div>
+
+  <div class="sec" style="margin-top:4px">Fluido</div>
+  <div class="card" style="margin-bottom:14px;padding:14px 16px">
+    <div>
+      <div class="fl" style="margin-bottom:6px">Seleccionar fluido</div>
+      <select id="selFluid" onchange="onFluid()" style="-webkit-appearance:none;appearance:none;width:100%;background:var(--sf);border:1px solid var(--bd);border-radius:var(--rsm);padding:10px 32px 10px 14px;font-family:inherit;font-size:14px;color:var(--tx);background-image:url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238e8e93' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E&quot;);background-repeat:no-repeat;background-position:right 12px center;outline:none;cursor:pointer"></select>
+    </div>
+    <div id="fluidCustom" style="display:none;margin-top:10px">
+      <div class="form-2">
+        <div><div class="fl">ρ [kg/m³]</div><input class="ios-inp" id="rhoInp" value="998" oninput="update()"></div>
+        <div><div class="fl">ν [m²/s]</div><input class="ios-inp" id="nuInp" value="1.004e-6" oninput="update()"></div>
+      </div>
+      <div style="margin-top:8px"><div class="fl">pv presión vapor [Pa]</div><input class="ios-inp" id="pvFluidInp" value="2338" oninput="update()"></div>
+    </div>
+    <div style="font-size:12px;color:var(--mu);margin-top:8px" id="fluidDesc">ρ=998.2 kg/m³ · ν=1.004×10⁻⁶ m²/s · pv=2338 Pa</div>
+  </div>
+
+  <div class="sec">Fórmulas de referencia</div>
+  <div class="card" style="margin-bottom:24px">
+    <div class="it">Punto de operación</div>
+    <div class="ib">Intersección de H_bomba(Q) = H_sistema(Q)<br>H_sistema = Hst + Σ(f·L/D + Σζ)·v²/(2g)</div>
+    <div class="it">NPSH disponible</div>
+    <div class="ib">NPSHd = (P_atm − pv)/(ρ·g) − Zs − hf_succión<br>Donde Zs &gt; 0 si la bomba está sobre el depósito</div>
+    <div class="it">Leyes de semejanza</div>
+    <div class="ib">Q₂/Q₁ = n₂/n₁ &nbsp;·&nbsp; H₂/H₁ = (n₂/n₁)² &nbsp;·&nbsp; P₂/P₁ = (n₂/n₁)³</div>
+    <div class="it">Velocidad específica</div>
+    <div class="ib" style="padding-bottom:14px">nq = n·√Q / (g·H)^0.75 &nbsp; [adim.]<br>nq &lt; 0.2: centrífuga radial &nbsp;· &nbsp;0.2–0.8: mixta &nbsp;· &nbsp;&gt;0.8: axial</div>
+  </div>
+</div>
+
+<nav class="nav">
+  <button class="nb active" data-nav="curvas"><span class="ico">📈</span><span>Curvas</span></button>
+  <button class="nb" data-nav="npsh"><span class="ico">💧</span><span>NPSH</span></button>
+  <button class="nb" data-nav="bomba"><span class="ico">⚙️</span><span>Bomba</span></button>
+  <button class="nb" data-nav="presets"><span class="ico">📂</span><span>Ejemplos</span></button>
+</nav>
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { fitPumpCurve, pumpHead, pumpEff, pumpPower, systemHead, operatingPoint,
+         npshDisponible, npshRequired, maxAspiracion, nq, pumpType, affinityLaws,
+         generateCurves, FLUIDS, PRESETS, frictionFactor, pvapor, G, PI } from './js/engine.js';
+import { PumpChart, NpshChart } from './js/chart.js';
+
+// ── CHARTS ────────────────────────────────────────────────────────────────────
+const pumpChart = new PumpChart(document.getElementById('pumpCvs'));
+const npshChart = new NpshChart(document.getElementById('npshCvs'));
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let rho = 998.2, nu = 1.004e-6, pv = 2338;
+let op = null, pts = [];
+
+// ── READ INPUTS ───────────────────────────────────────────────────────────────
+function inp(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+function readParams() {
+  return {
+    H0: inp('h0Inp'), Hn: inp('hnInp'), Qn: inp('qnInp'), Qmax: inp('qmaxInp'),
+    eta_max: inp('etaInp'), npshR_n: inp('npshRnInp'), n_rpm: inp('rpmInp'),
+    Hst: inp('hstInp'),
+    tramo: { L: inp('ltInp'), D: inp('dtInp')/1000, eps: inp('epsInp')/1000, zeta_total: inp('zetaTInp') },
+    succion: { Zs: inp('zsInp'), L_s: inp('lsInp'), D_s: inp('dsInp')/1000, eps: 0.00015, zeta_s: inp('zetaInp') },
+    P_atm: inp('patmInp'), pv_inp: inp('pvInp'),
+  };
+}
+
+// ── UPDATE ────────────────────────────────────────────────────────────────────
+const fmt = (n,d=2) => n!=null&&isFinite(n)?n.toFixed(d):'—';
+
+function update() {
+  const p = readParams();
+  const pvEff = p.pv_inp || pv;
+
+  const curve = fitPumpCurve(p.H0, p.Hn, p.Qn, p.Qmax);
+  if (!curve) return;
+
+  const tramos = [p.tramo];
+
+  // Generate curves
+  pts = generateCurves({
+    curve, Hst: p.Hst, tramos, rho, nu, pv: pvEff, P_atm: p.P_atm,
+    Qn: p.Qn, eta_max: p.eta_max, npshR_n: p.npshR_n, n_rpm: p.n_rpm, succion: p.succion
+  });
+
+  // Operating point
+  op = operatingPoint(curve, p.Hst, tramos, rho, nu);
+
+  // Efficiency and power at op
+  const etaOp  = pumpEff(op.Q, p.Qn, p.eta_max);
+  const powOp  = pumpPower(op.Q, op.H, etaOp, rho);
+
+  // NPSH at op
+  const Q_op   = op.Q / 3600;
+  const As     = PI*p.succion.D_s*p.succion.D_s/4;
+  const vs     = Q_op / As;
+  const Re_s   = vs*p.succion.D_s/nu;
+  const f_s    = frictionFactor(Re_s, p.succion.eps/p.succion.D_s);
+  const hf_s   = f_s*p.succion.L_s/p.succion.D_s*vs*vs/(2*G) + p.succion.zeta_s*vs*vs/(2*G);
+  const npshD  = npshDisponible({ P_atm: p.P_atm, rho, Zs: p.succion.Zs, hf_s, pv: pvEff });
+  const npshRo = npshRequired(op.Q, p.Qn, p.npshR_n);
+  const margin = npshD - npshRo;
+  const zsMaxV = maxAspiracion({ P_atm: p.P_atm, rho, pv: pvEff, hf_s, npshR: npshRo, margen: 0.5 });
+
+  // nq
+  const nqV    = nq(p.n_rpm, op.Q, op.H);
+  const pType  = pumpType(nqV);
+
+  // ── Update UI ─────────────────────────────────────────────────────────────
+  document.getElementById('opQ').textContent   = fmt(op.Q, 1);
+  document.getElementById('opH').textContent   = fmt(op.H, 1);
+  document.getElementById('opEta').textContent = fmt(etaOp*100, 1);
+  document.getElementById('opP').textContent   = fmt(powOp, 2);
+
+  document.getElementById('npshD').textContent = fmt(npshD, 2);
+  document.getElementById('npshR').textContent = fmt(npshRo, 2);
+  document.getElementById('npshM').textContent = fmt(margin, 2);
+  document.getElementById('zsMax').textContent = fmt(zsMaxV, 1);
+  document.getElementById('nqVal').textContent  = fmt(nqV, 3);
+  document.getElementById('pumpType').textContent = `${pType.icon} ${pType.type}`;
+
+  // Cavitation status
+  const pill = document.getElementById('statusPill');
+  const warn = document.getElementById('cavitWarn');
+  const ok   = document.getElementById('cavitOk');
+  if (margin < 0) {
+    pill.textContent='⚠ Cavitación'; pill.className='hdr-pill cav';
+    warn.style.display='block'; ok.style.display='none';
+  } else if (margin < 0.5) {
+    pill.textContent='⚠ Margen bajo'; pill.className='hdr-pill warn';
+    warn.style.display='block'; ok.style.display='none';
+  } else {
+    pill.textContent=`✓ Margen ${fmt(margin,1)} m`; pill.className='hdr-pill ok';
+    warn.style.display='none'; ok.style.display='block';
+  }
+
+  // Charts
+  pumpChart.setData(pts, op);
+  pumpChart.draw();
+  npshChart.setData(pts, op);
+  npshChart.draw();
+
+  // Affinity
+  updateAffinity(op.Q, op.H, powOp, p.n_rpm);
+}
+
+// ── AFFINITY LAWS ─────────────────────────────────────────────────────────────
+function updateAffinity(Q1, H1, P1, n1) {
+  if (Q1 == null) return;
+  const n2 = parseFloat(document.getElementById('n2Inp').value) || n1;
+  const aff = affinityLaws(Q1, H1, P1, n1, n2);
+  document.getElementById('affN1').textContent = n1?.toFixed(0) ?? '—';
+  document.getElementById('affQ2').textContent = fmt(aff.Q2, 1);
+  document.getElementById('affH2').textContent = fmt(aff.H2, 1);
+  document.getElementById('affP2').textContent = fmt(aff.P2, 2);
+}
+window.updateAffinity = function() {
+  const p = readParams();
+  const curve = fitPumpCurve(p.H0, p.Hn, p.Qn, p.Qmax);
+  if (!curve || !op) return;
+  const powOp = pumpPower(op.Q, op.H, pumpEff(op.Q, p.Qn, p.eta_max), rho);
+  updateAffinity(op.Q, op.H, powOp, p.n_rpm);
+};
+
+// ── PRESETS ───────────────────────────────────────────────────────────────────
+const presetList = document.getElementById('presetList');
+PRESETS.forEach((pr, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'preset-btn';
+  btn.innerHTML = `<strong>${pr.name}</strong><span>H0=${pr.H0}m · Qn=${pr.Qn}m³/h · η=${Math.round(pr.eta_max*100)}%</span>`;
+  btn.onclick = () => loadPreset(i);
+  presetList.appendChild(btn);
+});
+
+function loadPreset(i) {
+  const pr = PRESETS[i];
+  document.getElementById('h0Inp').value    = pr.H0;
+  document.getElementById('hnInp').value    = pr.Hn;
+  document.getElementById('qnInp').value    = pr.Qn;
+  document.getElementById('qmaxInp').value  = pr.Qmax;
+  document.getElementById('etaInp').value   = pr.eta_max;
+  document.getElementById('npshRnInp').value= pr.npshR_n;
+  document.getElementById('rpmInp').value   = pr.n_rpm;
+  document.getElementById('hstInp').value   = pr.Hst;
+  document.getElementById('ltInp').value    = pr.tramos[0].L;
+  document.getElementById('dtInp').value    = pr.tramos[0].D * 1000;
+  document.getElementById('epsInp').value   = pr.tramos[0].eps * 1000;
+  document.getElementById('zetaTInp').value = pr.tramos[0].zeta_total;
+  document.getElementById('zsInp').value    = pr.succion.Zs;
+  document.getElementById('lsInp').value    = pr.succion.L_s;
+  document.getElementById('dsInp').value    = pr.succion.D_s * 1000;
+  document.getElementById('zetaInp').value  = pr.succion.zeta_s;
+  document.getElementById('n2Inp').value    = pr.n_rpm;
+  update();
+  navigate('curvas');
+  toast(`📂 ${pr.name} cargado`);
+}
+
+// ── FLUIDS ────────────────────────────────────────────────────────────────────
+const selFluid = document.getElementById('selFluid');
+FLUIDS.forEach((f,i) => { const o=document.createElement('option');o.value=i;o.textContent=f.name;selFluid.appendChild(o); });
+
+window.onFluid = function() {
+  const f = FLUIDS[parseInt(selFluid.value)];
+  if (f.rho !== null) {
+    rho=f.rho; nu=f.nu; pv=f.pv;
+    document.getElementById('fluidCustom').style.display='none';
+    document.getElementById('pvInp').value = pv;
+  } else {
+    document.getElementById('fluidCustom').style.display='block';
+    rho=parseFloat(document.getElementById('rhoInp').value)||rho;
+    nu =parseFloat(document.getElementById('nuInp').value)||nu;
+    pv =parseFloat(document.getElementById('pvFluidInp').value)||pv;
+  }
+  document.getElementById('fluidDesc').textContent=`ρ=${rho} kg/m³ · ν=${nu.toExponential(2)} m²/s · pv=${pv} Pa`;
+  update();
+};
+document.getElementById('rhoInp').addEventListener('input',()=>{rho=parseFloat(document.getElementById('rhoInp').value)||rho;update();});
+document.getElementById('nuInp').addEventListener('input',()=>{nu=parseFloat(document.getElementById('nuInp').value)||nu;update();});
+document.getElementById('pvFluidInp').addEventListener('input',()=>{pv=parseFloat(document.getElementById('pvFluidInp').value)||pv;update();});
+
+// ── NAV ───────────────────────────────────────────────────────────────────────
+function navigate(target) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.dataset.page===target));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.toggle('active',b.dataset.nav===target));
+  setTimeout(()=>{pumpChart.resize();pumpChart.draw();npshChart.resize();npshChart.draw();},50);
+}
+document.querySelectorAll('.nb').forEach(btn=>btn.addEventListener('click',()=>navigate(btn.dataset.nav)));
+
+// ── RESIZE ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize',()=>{pumpChart.resize();pumpChart.draw();npshChart.resize();npshChart.draw();});
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+window.toast=function(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2400);};
+
+// ── SW & INIT ─────────────────────────────────────────────────────────────────
+if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+update();
+</script>
+</body>
+</html>
