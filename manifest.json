@@ -1,15 +1,12 @@
 {
-  "name": "Bombas & NPSH",
+  "name": "Bombas Pro",
   "short_name": "Bombas",
-  "description": "Dimensionado de bombas, curva del sistema y análisis NPSH/cavitación",
-  "start_url": "./index.html",
+  "start_url": "index.html",
   "display": "standalone",
-  "background_color": "#f2f2f7",
-  "theme_color": "#f2f2f7",
-  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#007AFF",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icons/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
   ]
 }

@@ -1,20 +1,22 @@
-const CACHE = 'bombas-pro-naval-v3';
+const CACHE = 'bombas-v5';
 const ASSETS = [
-    '/',
-    '/index.html',
-    '/app.js',
-    '/js/engine.js',
-    '/css/style.css',
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js'
+  './',
+  'index.html',
+  'app.js',
+  'css/style.css',
+  'js/engine.js',
+  'js/chart.js',
+  'manifest.json'
 ];
 
 self.addEventListener('install', e => {
-    e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-    self.skipWaiting();
+  e.waitUntil(
+    caches.open(CACHE).then(cache => cache.addAll(ASSETS))
+  );
 });
 
 self.addEventListener('fetch', e => {
-    e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+  e.respondWith(
+    caches.match(e.request).then(res => res || fetch(e.request))
+  );
 });

@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Bombas Pro: Naval & Industrial</title>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Bombas Pro Naval</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -21,43 +23,44 @@
 </header>
 
 <main class="main-scroll">
-  <div class="sec">Fabricante y Aplicación</div>
+  <div class="sec">1. Selección de Equipo</div>
   <div class="card">
     <select id="sectorSel" class="ios-select" onchange="filterMakers()" style="width:100%">
-      <option value="naval">🚢 Naval (Azcue, Thune Eureka, DESMI...)</option>
-      <option value="global">🌍 Global (Grundfos, KSB, Sulzer...)</option>
+      <option value="naval">🚢 Sector Naval (Azcue, Thune Eureka...)</option>
+      <option value="global">🌍 Industrial (Grundfos, KSB...)</option>
     </select>
     <select id="makerSel" class="ios-select" style="width:100%; margin-top:10px;"></select>
   </div>
 
-  <div class="sec">Accesorios en Aspiración (Pérdidas K)</div>
+  <div class="sec">2. Accesorios en Succión</div>
   <div class="card">
     <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-      <div><label class="fl">Codos 90º (und)</label><input type="number" id="acc_codo" class="ios-inp" value="0" oninput="calcAcc()"></div>
-      <div><label class="fl">Válv. Globo (und)</label><input type="number" id="acc_globo" class="ios-inp" value="0" oninput="calcAcc()"></div>
-      <div><label class="fl">Válv. Compuerta</label><input type="number" id="acc_comp" class="ios-inp" value="0" oninput="calcAcc()"></div>
-      <div><label class="fl">Filtro de Cesta</label><input type="number" id="acc_filt" class="ios-inp" value="0" oninput="calcAcc()"></div>
+      <div><label class="fl">Codos 90º</label><input type="number" id="acc_codo" class="ios-inp" value="0"></div>
+      <div><label class="fl">Válv. Globo</label><input type="number" id="acc_globo" class="ios-inp" value="0"></div>
+      <div><label class="fl">Filtro Aspiración</label><input type="number" id="acc_filt" class="ios-inp" value="0"></div>
+      <div><label class="fl">NPSH Disp (m)</label><input type="number" id="npshDisp" class="ios-inp" value="6.0"></div>
     </div>
-    <div id="resAcc" style="margin-top:10px; font-size:12px; font-weight:bold; color:var(--ac);">Σ K = 0.00 | h_acc = 0.00 m</div>
   </div>
 
-  <div class="sec">Análisis de Curva (PDF/Cámara)</div>
+  <div class="sec">3. Análisis de Catálogo</div>
   <div class="card">
     <label class="btn-start" style="display:block; text-align:center; background:#007AFF; color:#fff; cursor:pointer;">
-      📁 CARGAR CATÁLOGO
+      📁 ABRIR PDF O CÁMARA
       <input type="file" id="fileInp" accept="application/pdf,image/*" capture="environment" style="display:none" onchange="handleImport(event)">
     </label>
-    <div id="canvasCont" style="display:none; margin-top:10px;">
-      <canvas id="pdfCanvas" style="width:100%; border:1px solid #ccc;"></canvas>
-      <div id="calibSteps" class="instr">Paso 1: Toca el (0,0) de la curva H.</div>
-    </div>
+    <canvas id="pdfCanvas" style="width:100%; display:none; margin-top:10px; border-radius:8px; border:1px solid #ccc;"></canvas>
   </div>
 
   <button class="btn-start" style="width:100%; background:#28a745; color:white; margin:20px 0;" onclick="generarYCompartir()">
-    📤 COMPARTIR INFORME POR WHATSAPP
+    📤 ENVIAR INFORME WHATSAPP
   </button>
 </main>
 
-<script src="js/app.js"></script>
+<script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
+  }
+</script>
 </body>
 </html>
