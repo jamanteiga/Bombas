@@ -3,65 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Bombas Pro v28</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Bombas Pro Naval v29</title>
     <link rel="stylesheet" href="css/style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; }
+        #pdfCanvas { width: 100%; height: auto; touch-action: none; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-900 min-h-screen pb-10">
+<body class="bg-slate-50 text-slate-900 min-h-screen pb-12">
 
-<header class="bg-blue-700 p-4 text-white shadow-lg flex justify-between items-center">
-    <h1 class="font-bold">⚓ Bombas Pro Naval</h1>
-    <div id="statusOBD" class="text-[10px] bg-blue-800 px-2 py-1 rounded">HTTPS OK</div>
+<header class="bg-blue-700 pt-12 pb-4 px-4 text-white shadow-lg flex justify-between items-center">
+    <h1 class="font-bold tracking-tight">⚓ Bombas Pro Naval</h1>
+    <span class="text-[10px] bg-blue-800 px-2 py-1 rounded">iOS READY</span>
 </header>
 
 <main class="p-4 max-w-md mx-auto space-y-6">
     
-    <section class="bg-white p-4 rounded-2xl shadow-sm space-y-3">
-        <h2 class="text-xs font-bold text-slate-400 uppercase">1. Identificación y Requerimientos</h2>
-        <input type="text" id="pumpTag" placeholder="Nombre/Tag de la Bomba" class="w-full p-3 bg-slate-100 rounded-xl outline-none border-none">
-        <div class="grid grid-cols-2 gap-2">
+    <section class="bg-white p-5 rounded-3xl shadow-sm space-y-4">
+        <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">1. Datos del Equipo</h2>
+        <input type="text" id="pumpTag" placeholder="Nombre o Tag de la Bomba" class="w-full p-4 bg-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+        
+        <div class="grid grid-cols-2 gap-3">
             <div>
-                <label class="text-[10px] font-bold ml-2">Q Requerido (m³/h)</label>
-                <input type="number" id="qReq" value="25" class="w-full p-3 bg-slate-100 rounded-xl outline-none border-none">
+                <label class="text-[10px] font-bold text-slate-500 ml-1">Q REQ (m³/h)</label>
+                <input type="number" id="qReq" value="25" inputmode="decimal" class="w-full p-4 bg-slate-100 rounded-2xl outline-none">
             </div>
             <div>
-                <label class="text-[10px] font-bold ml-2">H Requerida (m)</label>
-                <input type="number" id="hReq" value="30" class="w-full p-3 bg-slate-100 rounded-xl outline-none border-none">
+                <label class="text-[10px] font-bold text-slate-500 ml-1">H REQ (m)</label>
+                <input type="number" id="hReq" value="30" inputmode="decimal" class="w-full p-4 bg-slate-100 rounded-2xl outline-none">
             </div>
         </div>
     </section>
 
-    <section class="bg-white p-4 rounded-2xl shadow-sm space-y-4">
-        <h2 class="text-xs font-bold text-slate-400 uppercase">2. Captura de Gráfica</h2>
+    <section class="bg-white p-5 rounded-3xl shadow-sm space-y-4">
+        <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">2. Digitalización de Curva</h2>
         <div class="grid grid-cols-2 gap-3">
-            <label class="bg-slate-800 text-white p-4 rounded-xl text-center text-xs font-bold cursor-pointer active:scale-95 transition-transform">
-                📄 ABRIR PDF
+            <label class="bg-slate-800 text-white p-4 rounded-2xl text-center text-xs font-bold cursor-pointer active:opacity-70 transition-opacity">
+                📄 ADJUNTAR PDF
                 <input type="file" id="filePdf" accept="application/pdf" class="hidden" onchange="handleImport(event, 'pdf')">
             </label>
-            <label class="bg-blue-600 text-white p-4 rounded-xl text-center text-xs font-bold cursor-pointer active:scale-95 transition-transform">
-                📷 HACER FOTO
+            <label class="bg-blue-600 text-white p-4 rounded-2xl text-center text-xs font-bold cursor-pointer active:opacity-70 transition-opacity">
+                📷 USAR CÁMARA
                 <input type="file" id="fileImg" accept="image/*" capture="environment" class="hidden" onchange="handleImport(event, 'img')">
             </label>
         </div>
         
-        <div id="calibSteps" class="text-sm font-medium text-blue-700 text-center animate-pulse hidden"></div>
-        <canvas id="pdfCanvas" class="w-full rounded-lg border hidden border-slate-300"></canvas>
+        <div id="calibSteps" class="text-xs font-bold text-blue-600 text-center py-2 hidden bg-blue-50 rounded-xl"></div>
+        <canvas id="pdfCanvas" class="rounded-2xl border border-slate-200 hidden shadow-inner"></canvas>
     </section>
 
-    <section class="bg-white p-4 rounded-2xl shadow-sm">
-        <h2 class="text-xs font-bold text-slate-400 uppercase mb-3">3. NPSH Disponible en Succión</h2>
-        <div class="grid grid-cols-3 gap-2">
-            <div><label class="text-[9px] block text-center uppercase">Codos 90</label><input type="number" id="acc_codo" value="0" class="w-full p-2 bg-slate-100 rounded-lg text-center"></div>
-            <div><label class="text-[9px] block text-center uppercase">V. Globo</label><input type="number" id="acc_globo" value="0" class="w-full p-2 bg-slate-100 rounded-lg text-center"></div>
-            <div><label class="text-[9px] block text-center uppercase">NPSHd (m)</label><input type="number" id="npshDisp" value="7" class="w-full p-2 bg-slate-100 rounded-lg text-center font-bold text-blue-600"></div>
+    <section class="bg-white p-5 rounded-3xl shadow-sm">
+        <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">3. Parámetros Succión</h2>
+        <div class="grid grid-cols-3 gap-3">
+            <div class="text-center">
+                <label class="text-[9px] font-bold text-slate-400 uppercase">Codos 90º</label>
+                <input type="number" id="acc_codo" value="0" inputmode="numeric" class="w-full p-3 bg-slate-100 rounded-xl text-center">
+            </div>
+            <div class="text-center">
+                <label class="text-[9px] font-bold text-slate-400 uppercase">V. Globo</label>
+                <input type="number" id="acc_globo" value="0" inputmode="numeric" class="w-full p-3 bg-slate-100 rounded-xl text-center">
+            </div>
+            <div class="text-center">
+                <label class="text-[9px] font-bold text-blue-400 uppercase">NPSHd (m)</label>
+                <input type="number" id="npshDisp" value="7.0" inputmode="decimal" class="w-full p-3 bg-blue-50 rounded-xl text-center font-bold text-blue-700">
+            </div>
         </div>
     </section>
 
-    <button onclick="generarYCompartir()" class="w-full bg-green-600 text-white p-5 rounded-2xl font-black shadow-xl active:scale-95 transition-transform">
-        📤 ENVIAR INFORME PDF
+    <button onclick="generarYCompartir()" class="w-full bg-green-600 text-white p-5 rounded-[2rem] font-black text-lg shadow-xl active:scale-95 transition-all">
+        GENERAR INFORME
     </button>
 </main>
 
