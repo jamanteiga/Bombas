@@ -3,36 +3,45 @@ let config = { x0: 0, y0: 0, pxPerH: 0, pxPerQ: 0 };
 let isLocked = false;
 let pumpPoint = null;
 
-// Inicializar TensorFlow.js
-async function initAI() {
-    const dot = document.getElementById('aiDot');
-    const text = document.querySelector('#aiStatus span');
-    try {
-        await tf.ready();
-        dot.classList.replace('bg-slate-500', 'bg-cyan-400');
-        text.innerText = "Engine Ready";
-        text.classList.replace('text-slate-400', 'text-cyan-400');
-    } catch (e) {
-        text.innerText = "Engine Error";
-    }
-}
-initAI();
+// --- MOTOR DE VISIÓN ARTIFICIAL ---
+function applyVisionEnhancement(ctx, width, height) {
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
 
+    for (let i = 0; i < data.length; i += 4) {
+        // 1. Convertir a Grises (Luminancia)
+        const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+        
+        // 2. Aumento de Contraste Dinámico
+        // Si el píxel es claro (papel), lo forzamos a blanco. 
+        // Si es oscuro (curva), lo forzamos a negro.
+        let val = avg;
+        if (avg > 180) val = 255; // Blanco puro
+        else if (avg < 80) val = 0; // Negro puro
+        else {
+            // Curva sigmoide para contraste medio
+            val = 255 * (1 / (1 + Math.exp(-0.05 * (avg - 128))));
+        }
+
+        data[i] = val;     // R
+        data[i + 1] = val; // G
+        data[i + 2] = val; // B
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
+// --- GESTIÓN DE IMPORTACIÓN ---
 async function handleImport(event, type) {
     const file = event.target.files[0];
     if (!file) return;
 
     const canvas = document.getElementById('pdfCanvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
-    // UI Reset
-    canvas.style.display = 'block';
+    document.getElementById('visionControls').classList.remove('hidden');
     document.getElementById('calibPanel').classList.remove('hidden');
-    document.getElementById('statusMsg').classList.remove('hidden');
-    document.getElementById('statusMsg').innerText = "PASO 1: Toca el ORIGEN (0,0)";
-    calibPoints = [];
-    isLocked = false;
-
+    canvas.style.display = 'block';
+    
     if (type === 'pdf') {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
@@ -41,22 +50,40 @@ async function handleImport(event, type) {
         canvas.width = viewport.width; canvas.height = viewport.height;
         await page.render({ canvasContext: ctx, viewport }).promise;
     } else {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const scale = (window.innerWidth * 2) / img.width;
-                canvas.width = img.width * scale;
-                canvas.height = img.height * scale;
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            };
-            img.src = e.target.result;
+        const img = new Image();
+        img.onload = () => {
+            const scale = (window.innerWidth * 2) / img.width;
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            
+            // Aplicar limpieza de ruido automáticamente
+            applyVisionEnhancement(ctx, canvas.width, canvas.height);
+            updateStatus("VISIÓN: Foto optimizada para detección");
         };
-        reader.readAsDataURL(file);
+        img.src = URL.createObjectURL(file);
+    }
+    
+    resetState();
+}
+
+function toggleEnhancement() {
+    const canvas = document.getElementById('pdfCanvas');
+    if (document.getElementById('toggleVision').checked) {
+        canvas.style.filter = "contrast(1.4) grayscale(1)";
+    } else {
+        canvas.style.filter = "none";
     }
 }
 
-// Interacción Táctil con Mapeo
+// --- LÓGICA DE CALIBRACIÓN ---
+function resetState() {
+    calibPoints = [];
+    isLocked = false;
+    pumpPoint = null;
+    updateStatus("PASO 1: Toca el ORIGEN (0,0)");
+}
+
 document.getElementById('pdfCanvas').addEventListener('touchstart', (e) => {
     e.preventDefault();
     const touch = e.touches[0];
@@ -65,107 +92,77 @@ document.getElementById('pdfCanvas').addEventListener('touchstart', (e) => {
     const y = (touch.clientY - rect.top) * (e.target.height / rect.height);
     
     if (!isLocked) {
-        handleCalibration(x, y);
+        if (calibPoints.length < 3) {
+            calibPoints.push({x, y});
+            drawMarker(x, y, calibPoints.length, "#22d3ee");
+            const steps = ["", "PASO 2: Toca el MÁXIMO de H", "PASO 3: Toca el MÁXIMO de Q", "Escala lista"];
+            updateStatus(steps[calibPoints.length]);
+        }
     } else {
-        handleMapping(x, y);
+        pumpPoint = {x, y};
+        drawMarker(x, y, "P", "#10b981");
+        document.getElementById('resultsArea').classList.remove('hidden');
     }
 }, { passive: false });
 
-function handleCalibration(x, y) {
-    if (calibPoints.length < 3) {
-        calibPoints.push({x, y});
-        drawPoint(x, y, calibPoints.length, "#22d3ee");
-        
-        const steps = ["", "PASO 2: Toca el MÁXIMO de Altura (H)", "PASO 3: Toca el MÁXIMO de Caudal (Q)", "¡CALIBRADO! Pulsa el botón verde"];
-        document.getElementById('statusMsg').innerText = steps[calibPoints.length] || steps[3];
-        document.getElementById('stepCounter').innerText = `Paso ${Math.min(calibPoints.length + 1, 3)}/3`;
-    }
-}
-
-function lockScale() {
-    if (calibPoints.length < 3) return alert("Calibra los 3 puntos primero");
+function lockAndAnalyze() {
+    if (calibPoints.length < 3) return alert("Faltan puntos de calibración");
     
-    const hScale = parseFloat(document.getElementById('hMaxScale').value);
-    const qScale = parseFloat(document.getElementById('qMaxScale').value);
+    const hMax = parseFloat(document.getElementById('hMaxScale').value);
+    const qMax = parseFloat(document.getElementById('qMaxScale').value);
     
     config = {
         x0: calibPoints[0].x,
         y0: calibPoints[0].y,
-        pxPerH: Math.abs(calibPoints[0].y - calibPoints[1].y) / hScale,
-        pxPerQ: Math.abs(calibPoints[2].x - calibPoints[0].x) / qScale
+        pxPerH: Math.abs(calibPoints[0].y - calibPoints[1].y) / hMax,
+        pxPerQ: Math.abs(calibPoints[2].x - calibPoints[0].x) / qMax
     };
 
     isLocked = true;
-    document.getElementById('statusMsg').innerText = "IA ACTIVA: Toca la curva de la bomba";
-    document.getElementById('btnFinal').classList.remove('hidden');
-    drawRequirementGuide();
+    updateStatus("🎯 IA ACTIVA: Toca la curva de la bomba");
+    document.getElementById('calibPanel').classList.add('hidden');
 }
 
-function drawRequirementGuide() {
-    const qReq = parseFloat(document.getElementById('qReq').value);
-    const targetX = config.x0 + (qReq * config.pxPerQ);
-    const ctx = document.getElementById('pdfCanvas').getContext('2d');
-    
-    ctx.setLineDash([10, 10]);
-    ctx.strokeStyle = "rgba(34, 211, 238, 0.6)";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(targetX, 0); ctx.lineTo(targetX, document.getElementById('pdfCanvas').height);
-    ctx.stroke();
+function updateStatus(txt) {
+    const el = document.getElementById('statusMsg');
+    el.innerText = txt;
+    el.style.opacity = "1";
+    setTimeout(() => { if(!isLocked) el.style.opacity = "0.7"; }, 2000);
 }
 
-function handleMapping(x, y) {
-    // Aquí implementamos el "Snapping" (Imantado)
-    // En el futuro, TensorFlow procesaría el área alrededor de (x,y) para buscar la línea oscura
-    pumpPoint = {x, y};
-    drawPoint(x, y, "P", "#10b981");
-}
-
-function drawPoint(x, y, label, color) {
+function drawMarker(x, y, label, color) {
     const ctx = document.getElementById('pdfCanvas').getContext('2d');
     ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(x, y, 15, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI*2); ctx.fill();
     ctx.strokeStyle = "white"; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = "white"; ctx.font = "bold 16px Arial";
+    ctx.fillStyle = "white"; ctx.font = "bold 18px Arial";
     ctx.textAlign = "center"; ctx.fillText(label, x, y + 6);
 }
 
 async function generarInforme() {
-    if (!pumpPoint) return alert("Marca el punto de trabajo en la curva");
-
     const hReal = ((config.y0 - pumpPoint.y) / config.pxPerH).toFixed(1);
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const tag = document.getElementById('pumpTag').value || "BOMBA-UNNAMED";
-
-    doc.setFillColor(15, 23, 42);
-    doc.rect(0, 0, 210, 40, 'F');
-    doc.setTextColor(34, 211, 238);
+    
     doc.setFontSize(22);
-    doc.text("INFORME DE ANÁLISIS AI", 20, 25);
-
+    doc.text("REPORTE DE CAMPO - VISION AI", 20, 25);
     doc.autoTable({
-        startY: 50,
-        head: [['CONCEPTO', 'VALOR']],
+        startY: 35,
         body: [
-            ['TAG EQUIPO', tag],
-            ['Q DISEÑO', document.getElementById('qReq').value + " m3/h"],
-            ['H DISEÑO', document.getElementById('hReq').value + " m"],
-            ['H DETECTADA (AI)', hReal + " m"],
-            ['DESVIACIÓN', (hReal - document.getElementById('hReq').value).toFixed(1) + " m"]
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [8, 145, 178] }
+            ['Tag Equipo', document.getElementById('pumpTag').value],
+            ['H Detectada', hReal + " m"],
+            ['Q Requerido', document.getElementById('qReq').value + " m3/h"]
+        ]
     });
 
     const canvas = document.getElementById('pdfCanvas');
-    doc.addImage(canvas.toDataURL("image/jpeg", 0.6), 'JPEG', 15, 100, 180, 120);
-
-    const pdfBlob = doc.output('blob');
-    const file = new File([pdfBlob], `${tag}.pdf`, { type: "application/pdf" });
-
-    if (navigator.share) await navigator.share({ files: [file] });
-    else doc.save(`${tag}.pdf`);
+    doc.addImage(canvas.toDataURL("image/jpeg", 0.6), 'JPEG', 15, 80, 180, 120);
+    
+    if (navigator.share) {
+        const blob = doc.output('blob');
+        const file = new File([blob], "informe.pdf", { type: "application/pdf" });
+        await navigator.share({ files: [file] });
+    } else {
+        doc.save("reporte.pdf");
+    }
 }
-
-function resetApp() { location.reload(); }
