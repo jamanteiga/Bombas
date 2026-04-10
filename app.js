@@ -1,47 +1,41 @@
-let calibPoints = []; 
-let config = { x0: 0, y0: 0, pxH: 0, pxQ: 0, hMaxVal: 0, qMaxVal: 0 };
-let puntoCurvaReal = null;
+let calibPoints = []; // [0: Origen, 1: H_max_eje, 2: Q_max_eje]
+let config = { x0: 0, y0: 0, pxPerH: 0, pxPerQ: 0, maxH: 0, maxQ: 0 };
+let pumpPoint = null;
 
-// Configuración de PDF.js para iOS
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-// --- IMPORTACIÓN DE ARCHIVOS ---
-async function handleImport(event, tipo) {
+// --- IMPORTACIÓN ---
+async function handleImport(event, type) {
     const file = event.target.files[0];
     if (!file) return;
 
     const canvas = document.getElementById('pdfCanvas');
     const ctx = canvas.getContext('2d');
-    const steps = document.getElementById('calibSteps');
-    
-    // Reset de estado
-    canvas.style.display = 'block';
-    steps.classList.remove('hidden');
-    calibPoints = [];
-    puntoCurvaReal = null;
-    steps.innerText = "1. Toca el ORIGEN (0,0) en el gráfico";
+    const msg = document.getElementById('statusMsg');
 
-    if (tipo === 'pdf') {
-        try {
-            const arrayBuffer = await file.arrayBuffer();
-            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-            const page = await pdf.getPage(1);
-            const viewport = page.getViewport({ scale: 2.5 }); // Escala alta para precisión en iPhone
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-            await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-        } catch (err) {
-            alert("Error al cargar PDF: " + err.message);
-        }
+    canvas.style.display = 'block';
+    msg.classList.remove('hidden');
+    msg.innerText = "1. Toca el PUNTO ORIGEN (0,0) del gráfico";
+    
+    calibPoints = [];
+    pumpPoint = null;
+
+    if (type === 'pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+        const page = await pdf.getPage(1);
+        const viewport = page.getViewport({ scale: 2.5 });
+        canvas.width = viewport.width; canvas.height = viewport.height;
+        await page.render({ canvasContext: ctx, viewport }).promise;
     } else {
         const reader = new FileReader();
         reader.onload = (e) => {
             const img = new Image();
             img.onload = () => {
-                const maxW = window.innerWidth * 2;
-                const ratio = img.width / img.height;
-                canvas.width = maxW;
-                canvas.height = maxW / ratio;
+                // Ajustamos a pantalla manteniendo resolución para iPhone
+                const scale = (window.innerWidth * 2) / img.width;
+                canvas.width = img.width * scale;
+                canvas.height = img.height * scale;
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
             };
             img.src = e.target.result;
@@ -50,154 +44,125 @@ async function handleImport(event, tipo) {
     }
 }
 
-// --- LÓGICA DE CALIBRACIÓN Y MAPEO ---
+// --- EVENTOS TÁCTILES (iOS) ---
 document.getElementById('pdfCanvas').addEventListener('touchstart', function(e) {
-    // Evitar scroll mientras se calibra
-    e.preventDefault();
+    e.preventDefault(); // Evita scroll al tocar la foto
     const touch = e.touches[0];
     const rect = this.getBoundingClientRect();
     const x = (touch.clientX - rect.left) * (this.width / rect.width);
     const y = (touch.clientY - rect.top) * (this.height / rect.height);
-
-    procesarClick(x, y);
+    procesarEntrada(x, y);
 }, { passive: false });
 
-// Fallback para mouse/simulador
+// Fallback para click normal
 document.getElementById('pdfCanvas').addEventListener('mousedown', function(e) {
     const rect = this.getBoundingClientRect();
     const x = (e.clientX - rect.left) * (this.width / rect.width);
     const y = (e.clientY - rect.top) * (this.height / rect.height);
-    procesarClick(x, y);
+    procesarEntrada(x, y);
 });
 
-function procesarClick(x, y) {
-    const steps = document.getElementById('calibSteps');
+function procesarEntrada(x, y) {
+    const msg = document.getElementById('statusMsg');
 
     if (calibPoints.length < 3) {
         calibPoints.push({x, y});
-        dibujarMarcador(x, y, calibPoints.length, "#ef4444"); // Rojo
-        
-        const guias = [
-            "2. Toca el MÁXIMO de ALTURA (H)",
-            "3. Toca el MÁXIMO de CAUDAL (Q)",
-            "🎯 Calibrado. TOCA LA CURVA sobre la línea azul"
-        ];
-        steps.innerText = guias[calibPoints.length - 1];
-        
-        if(calibPoints.length === 3) calcularParametros();
+        dibujarCirculo(x, y, calibPoints.length, "#ef4444");
+
+        if (calibPoints.length === 1) msg.innerText = "2. Toca el PUNTO MÁXIMO de la ESCALA VERTICAL (Altura)";
+        if (calibPoints.length === 2) msg.innerText = "3. Toca el PUNTO MÁXIMO de la ESCALA HORIZONTAL (Caudal)";
+        if (calibPoints.length === 3) {
+            msg.innerText = "🎯 Calibrado. Ahora TOCA LA CURVA donde cruza la línea azul";
+            inicializarMapeo();
+        }
     } else {
-        puntoCurvaReal = {x, y};
-        dibujarMarcador(x, y, "✔", "#22c55e"); // Verde
-        steps.innerText = "✅ Punto capturado correctamente";
+        // Mapeo del punto real de la bomba
+        pumpPoint = {x, y};
+        dibujarCirculo(x, y, "B", "#22c55e");
+        msg.innerText = "✅ Punto de funcionamiento registrado.";
     }
 }
 
-function calcularParametros() {
-    // Escala: 1.5x el requerimiento para tener margen visual
-    const H_ref = parseFloat(document.getElementById('hReq').value) * 1.5;
-    const Q_ref = parseFloat(document.getElementById('qReq').value) * 1.5;
+function inicializarMapeo() {
+    // Usamos el 120% de lo requerido como valor máximo para los ejes tocados
+    const hMaxReal = parseFloat(document.getElementById('hReq').value) * 1.2;
+    const qMaxReal = parseFloat(document.getElementById('qReq').value) * 1.2;
 
     config = {
         x0: calibPoints[0].x,
         y0: calibPoints[0].y,
-        pxH: Math.abs(calibPoints[0].y - calibPoints[1].y),
-        pxQ: Math.abs(calibPoints[2].x - calibPoints[0].x),
-        hMaxVal: H_ref,
-        qMaxVal: Q_ref
+        pxPerH: Math.abs(calibPoints[0].y - calibPoints[1].y) / hMaxReal,
+        pxPerQ: Math.abs(calibPoints[2].x - calibPoints[0].x) / qMaxReal,
+        maxH: hMaxReal,
+        maxQ: qMaxReal
     };
-    dibujarLineaGuia();
-}
 
-function dibujarLineaGuia() {
-    const Q_req = parseFloat(document.getElementById('qReq').value);
-    const targetX = config.x0 + (Q_req / config.qMaxVal) * config.pxQ;
-    const ctx = document.getElementById('pdfCanvas').getContext('2d');
+    // Dibujar línea de guía para el Q requerido
+    const qReq = parseFloat(document.getElementById('qReq').value);
+    const targetX = config.x0 + (qReq * config.pxPerQ);
     
-    ctx.setLineDash([20, 10]);
+    const ctx = document.getElementById('pdfCanvas').getContext('2d');
+    ctx.setLineDash([15, 10]);
     ctx.strokeStyle = "rgba(59, 130, 246, 0.8)";
     ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.moveTo(targetX, 0);
-    ctx.lineTo(targetX, document.getElementById('pdfCanvas').height);
+    ctx.moveTo(targetX, 0); ctx.lineTo(targetX, document.getElementById('pdfCanvas').height);
     ctx.stroke();
     ctx.setLineDash([]);
 }
 
-function dibujarMarcador(x, y, texto, color) {
+function dibujarCirculo(x, y, label, color) {
     const ctx = document.getElementById('pdfCanvas').getContext('2d');
     ctx.fillStyle = color;
     ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI*2); ctx.fill();
     ctx.strokeStyle = "white"; ctx.lineWidth = 4; ctx.stroke();
-    ctx.fillStyle = "white"; ctx.font = "bold 24px sans-serif";
-    ctx.textAlign = "center"; ctx.fillText(texto, x, y + 8);
+    ctx.fillStyle = "white"; ctx.font = "bold 22px sans-serif";
+    ctx.textAlign = "center"; ctx.fillText(label, x, y + 8);
 }
 
-// --- RESULTADOS E INFORME ---
-function calcularHidraulica() {
-    if (!puntoCurvaReal) return null;
+// --- CÁLCULO Y PDF ---
+async function generarInforme() {
+    if (!pumpPoint) return alert("Primero calibra y toca la curva de la bomba");
 
-    const pxRelativoH = config.y0 - puntoCurvaReal.y;
-    const hBomba = (pxRelativoH / config.pxH) * config.hMaxVal;
-
-    const codos = parseInt(document.getElementById('acc_codo').value) || 0;
-    const globos = parseInt(document.getElementById('acc_globo').value) || 0;
+    // TRADUCCIÓN PÍXEL -> VALOR REAL
+    const hPixels = config.y0 - pumpPoint.y;
+    const hCalculada = (hPixels / config.pxPerH).toFixed(1);
+    
+    // Cálculo NPSH
     const npshD = parseFloat(document.getElementById('npshDisp').value);
-    
-    // Pérdidas estimadas en metros
-    const hf = (codos * 0.2) + (globos * 1.5);
-    
-    return {
-        hReal: hBomba.toFixed(1),
-        npshFinal: (npshD - hf).toFixed(2)
-    };
-}
-
-async function generarYCompartir() {
-    const res = calcularHidraulica();
-    if (!res) return alert("Por favor, calibra y mapea el punto en la curva.");
+    const hf = (parseInt(document.getElementById('acc_codo').value)*0.2) + (parseInt(document.getElementById('acc_globo').value)*1.4);
+    const npshNeto = (npshD - hf).toFixed(2);
 
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const tag = document.getElementById('pumpTag').value || "Bomba_Analizada";
+    const tag = document.getElementById('pumpTag').value || "Bomba_Inspeccionada";
 
-    doc.setFontSize(22);
-    doc.setTextColor(30, 64, 175);
-    doc.text("INFORME DE INSPECCIÓN", 20, 25);
+    doc.setFontSize(20); doc.setTextColor(30, 64, 175);
+    doc.text("REPORTE TÉCNICO HIDRÁULICO", 20, 25);
 
     doc.autoTable({
         startY: 35,
-        head: [['CONCEPTO', 'VALOR']],
+        head: [['Parámetro', 'Valor']],
         body: [
-            ['IDENTIFICACIÓN', tag],
-            ['Q REQUERIDO', document.getElementById('qReq').value + " m3/h"],
-            ['H REQUERIDA', document.getElementById('hReq').value + " m"],
-            ['H REAL BOMBA', res.hReal + " m"],
-            ['NPSH DISPONIBLE NETO', res.npshFinal + " m"],
-            ['ESTADO NPSH', res.npshFinal < 3.0 ? "CRÍTICO" : "DENTRO DE RANGO"]
+            ['Identificación', tag],
+            ['Q de Diseño', document.getElementById('qReq').value + " m³/h"],
+            ['H de Diseño', document.getElementById('hReq').value + " m"],
+            ['H REAL (Mapeada)', hCalculada + " m"],
+            ['NPSH Neto Real', npshNeto + " m"],
+            ['Estado', npshNeto < 3.5 ? "RIESGO DE CAVITACIÓN" : "OPERACIÓN SEGURA"]
         ],
-        theme: 'striped',
         headStyles: { fillColor: [30, 64, 175] }
     });
 
-    const canvas = document.getElementById('pdfCanvas');
-    const imgData = canvas.toDataURL("image/jpeg", 0.5);
-    doc.addImage(imgData, 'JPEG', 10, 100, 190, 130);
-
+    const imgData = document.getElementById('pdfCanvas').toDataURL("image/jpeg", 0.6);
+    doc.addImage(imgData, 'JPEG', 10, 90, 190, 130);
+    
     const pdfBlob = doc.output('blob');
-    const file = new File([pdfBlob], `${tag.replace(/\s+/g, '_')}.pdf`, { type: "application/pdf" });
+    const file = new File([pdfBlob], `${tag}.pdf`, { type: "application/pdf" });
 
     if (navigator.share) {
-        try {
-            await navigator.share({ files: [file], title: 'Informe Bombas Pro' });
-        } catch (e) {
-            saveFallback(doc, tag);
-        }
+        await navigator.share({ files: [file], title: 'Informe Bomba' });
     } else {
-        saveFallback(doc, tag);
+        doc.save(`${tag}.pdf`);
     }
-}
-
-function saveFallback(doc, tag) {
-    doc.save(`${tag}.pdf`);
-    alert("Informe generado. Revisa tus descargas.");
 }
