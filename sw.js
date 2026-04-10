@@ -1,22 +1,11 @@
-const CACHE = 'bombas-v5';
-const ASSETS = [
-  './',
-  'index.html',
-  'app.js',
-  'css/style.css',
-  'js/engine.js',
-  'js/chart.js',
-  'manifest.json'
-];
+const CACHE = 'bombas-pro-v28';
+const ASSETS = ['./', 'index.html', 'app.js', 'manifest.json'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(cache => cache.addAll(ASSETS))
-  );
+    e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+    self.skipWaiting();
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(res => res || fetch(e.request))
-  );
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });

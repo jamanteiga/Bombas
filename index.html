@@ -1,66 +1,70 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <title>Bombas Pro Naval</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Bombas Pro v28</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="bg-slate-50 text-slate-900 min-h-screen pb-10">
 
-<header class="hdr">
-  <div class="hdr-logo">⚓ <span>Bombas Pro Naval</span></div>
-  <div class="lang-picker">
-    <button onclick="setLang('es')">ES</button>
-    <button onclick="setLang('gl')">GL</button>
-  </div>
+<header class="bg-blue-700 p-4 text-white shadow-lg flex justify-between items-center">
+    <h1 class="font-bold">⚓ Bombas Pro Naval</h1>
+    <div id="statusOBD" class="text-[10px] bg-blue-800 px-2 py-1 rounded">HTTPS OK</div>
 </header>
 
-<main class="main-scroll">
-  <div class="sec">1. Selección de Equipo</div>
-  <div class="card">
-    <select id="sectorSel" class="ios-select" onchange="filterMakers()" style="width:100%">
-      <option value="naval">🚢 Sector Naval (Azcue, Thune Eureka...)</option>
-      <option value="global">🌍 Industrial (Grundfos, KSB...)</option>
-    </select>
-    <select id="makerSel" class="ios-select" style="width:100%; margin-top:10px;"></select>
-  </div>
+<main class="p-4 max-w-md mx-auto space-y-6">
+    
+    <section class="bg-white p-4 rounded-2xl shadow-sm space-y-3">
+        <h2 class="text-xs font-bold text-slate-400 uppercase">1. Identificación y Requerimientos</h2>
+        <input type="text" id="pumpTag" placeholder="Nombre/Tag de la Bomba" class="w-full p-3 bg-slate-100 rounded-xl outline-none border-none">
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <label class="text-[10px] font-bold ml-2">Q Requerido (m³/h)</label>
+                <input type="number" id="qReq" value="25" class="w-full p-3 bg-slate-100 rounded-xl outline-none border-none">
+            </div>
+            <div>
+                <label class="text-[10px] font-bold ml-2">H Requerida (m)</label>
+                <input type="number" id="hReq" value="30" class="w-full p-3 bg-slate-100 rounded-xl outline-none border-none">
+            </div>
+        </div>
+    </section>
 
-  <div class="sec">2. Accesorios en Succión</div>
-  <div class="card">
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-      <div><label class="fl">Codos 90º</label><input type="number" id="acc_codo" class="ios-inp" value="0"></div>
-      <div><label class="fl">Válv. Globo</label><input type="number" id="acc_globo" class="ios-inp" value="0"></div>
-      <div><label class="fl">Filtro Aspiración</label><input type="number" id="acc_filt" class="ios-inp" value="0"></div>
-      <div><label class="fl">NPSH Disp (m)</label><input type="number" id="npshDisp" class="ios-inp" value="6.0"></div>
-    </div>
-  </div>
+    <section class="bg-white p-4 rounded-2xl shadow-sm space-y-4">
+        <h2 class="text-xs font-bold text-slate-400 uppercase">2. Captura de Gráfica</h2>
+        <div class="grid grid-cols-2 gap-3">
+            <label class="bg-slate-800 text-white p-4 rounded-xl text-center text-xs font-bold cursor-pointer active:scale-95 transition-transform">
+                📄 ABRIR PDF
+                <input type="file" id="filePdf" accept="application/pdf" class="hidden" onchange="handleImport(event, 'pdf')">
+            </label>
+            <label class="bg-blue-600 text-white p-4 rounded-xl text-center text-xs font-bold cursor-pointer active:scale-95 transition-transform">
+                📷 HACER FOTO
+                <input type="file" id="fileImg" accept="image/*" capture="environment" class="hidden" onchange="handleImport(event, 'img')">
+            </label>
+        </div>
+        
+        <div id="calibSteps" class="text-sm font-medium text-blue-700 text-center animate-pulse hidden"></div>
+        <canvas id="pdfCanvas" class="w-full rounded-lg border hidden border-slate-300"></canvas>
+    </section>
 
-  <div class="sec">3. Análisis de Catálogo</div>
-  <div class="card">
-    <label class="btn-start" style="display:block; text-align:center; background:#007AFF; color:#fff; cursor:pointer;">
-      📁 ABRIR PDF O CÁMARA
-      <input type="file" id="fileInp" accept="application/pdf,image/*" capture="environment" style="display:none" onchange="handleImport(event)">
-    </label>
-    <canvas id="pdfCanvas" style="width:100%; display:none; margin-top:10px; border-radius:8px; border:1px solid #ccc;"></canvas>
-  </div>
+    <section class="bg-white p-4 rounded-2xl shadow-sm">
+        <h2 class="text-xs font-bold text-slate-400 uppercase mb-3">3. NPSH Disponible en Succión</h2>
+        <div class="grid grid-cols-3 gap-2">
+            <div><label class="text-[9px] block text-center uppercase">Codos 90</label><input type="number" id="acc_codo" value="0" class="w-full p-2 bg-slate-100 rounded-lg text-center"></div>
+            <div><label class="text-[9px] block text-center uppercase">V. Globo</label><input type="number" id="acc_globo" value="0" class="w-full p-2 bg-slate-100 rounded-lg text-center"></div>
+            <div><label class="text-[9px] block text-center uppercase">NPSHd (m)</label><input type="number" id="npshDisp" value="7" class="w-full p-2 bg-slate-100 rounded-lg text-center font-bold text-blue-600"></div>
+        </div>
+    </section>
 
-  <button class="btn-start" style="width:100%; background:#28a745; color:white; margin:20px 0;" onclick="generarYCompartir()">
-    📤 ENVIAR INFORME WHATSAPP
-  </button>
+    <button onclick="generarYCompartir()" class="w-full bg-green-600 text-white p-5 rounded-2xl font-black shadow-xl active:scale-95 transition-transform">
+        📤 ENVIAR INFORME PDF
+    </button>
 </main>
 
 <script src="app.js"></script>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js').catch(err => console.log(err));
-  }
-</script>
 </body>
 </html>
